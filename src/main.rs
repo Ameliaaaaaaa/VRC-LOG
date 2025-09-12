@@ -60,9 +60,17 @@ async fn main() -> Result<()> {
 
     let (tx, rx) = crossbeam::channel::unbounded();
     let _ = WATCHERS.set(vec![
-        vrc_log::watch(tx.clone(), VRCHAT_AMP_PATH.as_path())?,
-        vrc_log::watch(tx.clone(), VRCHAT_LOW_PATH.as_path())?,
+        vrc_log::watch(tx.clone(), VRCHAT_AMP_PATH.as_path(), 100)?,
+        vrc_log::watch(tx.clone(), VRCHAT_LOW_PATH.as_path(), 1_000)?,
     ]);
+
+    #[cfg(windows)]
+    if vrc_log::windows::is_elevated()? {
+        vrc_log::windows::spawn_procmon_watcher();
+        info!("Running with elevated privileges.");
+        info!("Starting Process Monitor for additional logging.");
+        info!("Close Process Monitor manually to begin scans; it will reopen automatically.");
+    }
 
     settings.save()?;
     vrc_log::launch_game(args)?;
