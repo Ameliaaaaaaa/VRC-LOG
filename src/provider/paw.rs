@@ -13,25 +13,22 @@ use crate::{
 };
 
 const URL: &str = "https://paw-api.amelia.fun/update";
-const AVATAR_URL: &str = "https://paw-api.amelia.fun/avatar";
 
-pub struct Paw<'a> {
-    #[allow(dead_code)]
-    settings: &'a Settings,
-    client:   Client,
+pub struct Paw {
+    client: Client,
 }
 
-impl<'a> Paw<'a> {
+impl Paw {
     #[must_use]
-    pub fn new(settings: &'a Settings) -> Self {
+    pub fn new(_settings: &Settings) -> Self {
         Self {
-            settings,
             client: Client::default(),
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct PawResponse {
     success: bool,
     code:    u16,
@@ -40,33 +37,9 @@ struct PawResponse {
 }
 
 #[async_trait]
-impl Provider for Paw<'_> {
+impl Provider for Paw {
     fn kind(&self) -> ProviderKind {
         ProviderKind::PAW
-    }
-
-    async fn check_avatar_id(&self, _avatar_id: &str) -> Result<bool> {
-        let kind = self.kind();
-        let response = self
-            .client
-            .get(AVATAR_URL)
-            .header("User-Agent", USER_AGENT)
-            .query(&[("avatarId", _avatar_id)])
-            .timeout(Duration::from_secs(3))
-            .send()
-            .await?;
-
-        let status = response.status();
-        let text = response.text().await?;
-        debug!("[{kind}] {status} | {text}");
-
-        if status != StatusCode::OK {
-            bail!("[{kind}] Failed to check avatar: {status} | {text}");
-        }
-
-        let data = serde_json::from_str::<PawResponse>(&text)?;
-
-        Ok(data.success && data.code == 200 && data.result.is_some())
     }
 
     async fn send_avatar_id(&self, avatar_id: &str) -> Result<bool> {
@@ -87,7 +60,7 @@ impl Provider for Paw<'_> {
         let unique = match status {
             StatusCode::OK => {
                 let data = serde_json::from_str::<PawResponse>(&text)?;
-
+                #[allow(clippy::nonminimal_bool)]
                 !matches!(data.avatar.as_ref(), Some(avatar) if !avatar.is_null() && !(avatar.is_array() && avatar.as_array().unwrap().is_empty()))
             }
             StatusCode::TOO_MANY_REQUESTS => {

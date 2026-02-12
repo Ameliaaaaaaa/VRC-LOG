@@ -13,14 +13,14 @@ use crate::{
 
 const URL: &str = "https://search.bs002.de/api/Avatar/putavatar";
 
-pub struct VrcDB<'a> {
-    settings: &'a Settings,
+pub struct VrcDB<'s> {
+    settings: &'s Settings,
     client:   Client,
 }
 
-impl<'a> VrcDB<'a> {
+impl<'s> VrcDB<'s> {
     #[must_use]
-    pub fn new(settings: &'a Settings) -> Self {
+    pub fn new(settings: &'s Settings) -> Self {
         Self {
             settings,
             client: Client::default(),
@@ -32,10 +32,6 @@ impl<'a> VrcDB<'a> {
 impl Provider for VrcDB<'_> {
     fn kind(&self) -> ProviderKind {
         ProviderKind::VRCDB
-    }
-
-    async fn check_avatar_id(&self, _avatar_id: &str) -> Result<bool> {
-        bail!("Unsupported/Unused")
     }
 
     async fn send_avatar_id(&self, avatar_id: &str) -> Result<bool> {

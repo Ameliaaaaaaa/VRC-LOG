@@ -12,10 +12,11 @@ use strum::{Display, IntoEnumIterator};
 
 use crate::{discord, discord::DEVELOPER_ID, provider::ProviderKind};
 
-#[derive(Display, Deserialize, Serialize)]
+#[derive(Display, Deserialize, Serialize, Default)]
 pub enum Attribution {
     #[strum(to_string = "Anonymously (VRC-LOG Dev)")]
-    Anonymous(String),
+    #[default]
+    Anonymous,
     #[strum(to_string = "Discord RPC ({0})")]
     DiscordRPC(String),
     #[strum(to_string = "Discord ID (Manual Input)")]
@@ -26,7 +27,7 @@ impl Attribution {
     #[must_use]
     pub fn get_user_id(&self) -> String {
         match self {
-            Self::Anonymous(_) => DEVELOPER_ID.to_string(),
+            Self::Anonymous => DEVELOPER_ID.to_string(),
             Self::DiscordID(id) => id.clone(),
             Self::DiscordRPC(id) => discord::get_user()
                 .and_then(|u| u.id)
@@ -35,7 +36,7 @@ impl Attribution {
     }
 }
 
-#[derive(DeriveTomlConfig, Deserialize, Serialize)]
+#[derive(DeriveTomlConfig, Deserialize, Serialize, Default)]
 pub struct Settings {
     #[serde(default)]
     pub clear_amplitude: bool,
@@ -55,7 +56,7 @@ impl Settings {
     /// Will panic if Discord user ID doesn't exist.
     pub fn try_wizard() -> Result<Self> {
         let mut attributions = vec![
-            Attribution::Anonymous(DEVELOPER_ID.to_string()),
+            Attribution::Anonymous,
             Attribution::DiscordID(String::new()),
         ];
         if let Some(user) = discord::get_user() {
@@ -63,12 +64,10 @@ impl Settings {
         }
         let attribution = Select::new("How do you want to be credited?", attributions).prompt()?;
 
-        let providers = ProviderKind::iter()
-            .filter(|provider| !matches!(provider, ProviderKind::CACHE))
-            .collect();
+        let providers = ProviderKind::iter().collect();
 
         let providers = MultiSelect::new("Select which providers to use:", providers)
-            .with_all_selected_by_default()
+            .with_default(&[0])
             .with_validator(|list: &[ListOption<&ProviderKind>]| {
                 if list.is_empty() {
                     let message = String::from("You must select at least one.");

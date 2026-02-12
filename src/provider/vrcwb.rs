@@ -13,14 +13,14 @@ use crate::{
 
 const URL: &str = "https://avatar.worldbalancer.com/v1/vrchat/avatars/store/putavatarExternal";
 
-pub struct VrcWB<'a> {
-    settings: &'a Settings,
+pub struct VrcWB<'s> {
+    settings: &'s Settings,
     client:   Client,
 }
 
-impl<'a> VrcWB<'a> {
+impl<'s> VrcWB<'s> {
     #[must_use]
-    pub fn new(settings: &'a Settings) -> Self {
+    pub fn new(settings: &'s Settings) -> Self {
         Self {
             settings,
             client: Client::default(),
@@ -32,10 +32,6 @@ impl<'a> VrcWB<'a> {
 impl Provider for VrcWB<'_> {
     fn kind(&self) -> ProviderKind {
         ProviderKind::VRCWB
-    }
-
-    async fn check_avatar_id(&self, _avatar_id: &str) -> Result<bool> {
-        bail!("Unsupported/Unused")
     }
 
     async fn send_avatar_id(&self, avatar_id: &str) -> Result<bool> {
