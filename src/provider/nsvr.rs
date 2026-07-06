@@ -11,7 +11,7 @@ use crate::{
     USER_AGENT,
 };
 
-const URL: &str = "https://avtr.nekosunevr.co.uk/v1/vrchat/avatars/store/putavatarExternal";
+const URL: &str = "https://api-avatar.nekosunevr.co.uk/v1/vrchat/avatars/store/putavatarExternal";
 
 pub struct NSVR<'s> {
     settings: &'s Settings,
@@ -48,7 +48,7 @@ impl Provider for NSVR<'_> {
             .post(URL)
             .header("User-Agent", USER_AGENT)
             .json(&json)
-            .timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(5))
             .send()
             .await
         {

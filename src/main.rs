@@ -9,16 +9,18 @@ use chrono::{Local, Offset};
 use crossterm::{execute, terminal::SetTitle};
 use derive_config::{ConfigError, DeriveTomlConfig};
 use notify::PollWatcher;
+use strum::IntoEnumIterator;
 use terminal_link::Link;
-use time::{UtcOffset, macros::format_description};
+use time::{macros::format_description, UtcOffset};
 use tokio::signal;
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{EnvFilter, fmt::time::OffsetTime};
+use tracing_subscriber::{fmt::time::OffsetTime, EnvFilter};
 use vrc_log::{
-    CARGO_PKG_HOMEPAGE, provider,
-    provider::{ProviderKind, avtrdb::AvtrDBActor, prelude::*},
+    provider,
+    provider::{avtrdb::AvtrDBActor, prelude::*, ProviderKind},
     settings::Settings,
     vrchat::{VRCHAT_AMP_PATH, VRCHAT_LOW_PATH},
+    CARGO_PKG_HOMEPAGE,
 };
 
 /* Watchers will stop working if they get dropped. */
@@ -32,6 +34,8 @@ async fn main() -> Result<()> {
 
     /* Debugging: RUST_LOG=vrc_log=debug */
     tracing_subscriber::fmt()
+        .with_ansi(true)
+        .with_ansi_sanitization(false)
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
@@ -56,7 +60,7 @@ async fn main() -> Result<()> {
         args.retain(|arg| arg != "--wizard" && arg != "-w");
     }
 
-    let settings = if force_wizard {
+    let mut settings = if force_wizard {
         info!("Setup wizard requested via flag");
         Settings::try_wizard().expect("Failed to setup wizard")
     } else {
@@ -72,6 +76,11 @@ async fn main() -> Result<()> {
             }
         })
     };
+
+    if settings.providers.len() != ProviderKind::iter().count() {
+        info!("Additional providers have been added, triggering setup wizard");
+        settings = Settings::try_wizard().expect("Failed to setup wizard");
+    }
 
     let (tx, rx) = flume::unbounded();
     let _ = WATCHERS.set(vec![
@@ -90,36 +99,35 @@ async fn main() -> Result<()> {
     settings.save()?;
     vrc_log::launch_game(&args)?;
 
-    // This is a little wonky, but effecively we are creating a controlled memory leak
-    // which will be static for the rest of the programms runtime
-    let settings_static: &'static Settings = Box::leak(Box::new(settings));
+    // This is a little wonky, but effectively we are creating a controlled memory leak,
+    // which will be static for the rest of the programs runtime.
+    let settings: &'static Settings = Box::leak(Box::new(settings));
 
-    let (mut avtrdb_actor, avtrdb_sender) = AvtrDBActor::new(settings_static);
+    let (mut avtrdb_actor, avtrdb_sender) = AvtrDBActor::new(settings);
 
-    let providers = settings_static
+    let providers = settings
         .providers
         .iter()
-        .map(|provider| match provider {
+        .filter(|(_, enabled)| **enabled)
+        .map(|(provider, _)| match provider {
             #[cfg(feature = "nsvr")]
-            ProviderKind::NSVR => provider!(NSVR::new(settings_static)),
+            ProviderKind::NSVR => provider!(NSVR::new(settings)),
             #[cfg(feature = "paw")]
-            ProviderKind::PAW => provider!(Paw::new(settings_static)),
+            ProviderKind::PAW => provider!(Paw::new(settings)),
             #[cfg(feature = "vrcdb")]
-            ProviderKind::VRCDB => provider!(VrcDB::new(settings_static)),
+            ProviderKind::VRCDB => provider!(VrcDB::new(settings)),
             #[cfg(feature = "vrcwb")]
-            ProviderKind::VRCWB => provider!(VrcWB::new(settings_static)),
+            ProviderKind::VRCWB => provider!(VrcWB::new(settings)),
             #[cfg(feature = "avtrdb")]
             ProviderKind::AVTRDB => provider!(AvtrDB::new(avtrdb_sender.clone())),
+            #[cfg(feature = "avtrzip")]
+            ProviderKind::AVTRZIP => provider!(AvtrZip::default()),
         })
         .collect::<Vec<_>>();
 
     let avtrdb_handle = tokio::spawn(async move { avtrdb_actor.run().await });
 
-    let handle = tokio::spawn(vrc_log::process_avatars(
-        providers,
-        settings_static.clear_amplitude,
-        (tx, rx),
-    ));
+    let handle = tokio::spawn(vrc_log::process_avatars(providers, settings, (tx, rx)));
 
     let ctrl_c = async {
         signal::ctrl_c()

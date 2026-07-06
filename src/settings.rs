@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use derive_config::DeriveTomlConfig;
 use inquire::{
@@ -38,10 +40,10 @@ impl Attribution {
 
 #[derive(DeriveTomlConfig, Deserialize, Serialize, Default)]
 pub struct Settings {
-    #[serde(default)]
-    pub clear_amplitude: bool,
     pub attribution:     Attribution,
-    pub providers:       Vec<ProviderKind>,
+    pub clear_amplitude: bool,
+    pub print_scanned:   bool,
+    pub providers:       HashMap<ProviderKind, bool>,
 }
 
 impl Settings {
@@ -63,20 +65,25 @@ impl Settings {
             attributions.insert(1, Attribution::DiscordRPC(user.id.unwrap()));
         }
         let attribution = Select::new("How do you want to be credited?", attributions).prompt()?;
+        let providers = {
+            let providers = ProviderKind::iter().collect::<Vec<_>>();
+            let enabled = MultiSelect::new("Select which providers to use:", providers.clone())
+                .with_default(&[0, 1, 2, 3, 4, 5])
+                .with_validator(|list: &[ListOption<&ProviderKind>]| {
+                    if list.is_empty() {
+                        let message = String::from("You must select at least one.");
+                        Ok(Validation::Invalid(ErrorMessage::Custom(message)))
+                    } else {
+                        Ok(Validation::Valid)
+                    }
+                })
+                .prompt()?;
 
-        let providers = ProviderKind::iter().collect();
-
-        let providers = MultiSelect::new("Select which providers to use:", providers)
-            .with_default(&[0])
-            .with_validator(|list: &[ListOption<&ProviderKind>]| {
-                if list.is_empty() {
-                    let message = String::from("You must select at least one.");
-                    Ok(Validation::Invalid(ErrorMessage::Custom(message)))
-                } else {
-                    Ok(Validation::Valid)
-                }
-            })
-            .prompt()?;
+            providers
+                .iter()
+                .map(|provider| (*provider, enabled.contains(provider)))
+                .collect()
+        };
 
         let clear_amplitude = Confirm::new(
             "Clear amplitude file after reading? (Helps with privacy by removing tracked data)",
@@ -84,9 +91,16 @@ impl Settings {
         .with_default(true)
         .prompt()?;
 
+        let print_scanned = Confirm::new(
+            "Print all scanned avatar ids instead of just the uniquely discovered ones",
+        )
+        .with_default(false)
+        .prompt()?;
+
         Ok(Self {
-            clear_amplitude,
             attribution,
+            clear_amplitude,
+            print_scanned,
             providers,
         })
     }
