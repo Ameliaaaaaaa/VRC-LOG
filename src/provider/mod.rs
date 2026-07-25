@@ -6,6 +6,10 @@ use strum::{Display, EnumIter};
 pub mod avtrdb;
 #[cfg(feature = "avtrzip")]
 pub mod avtrzip;
+#[cfg(feature = "cutedb")]
+pub mod cutedb;
+#[cfg(feature = "kitsunedb")]
+pub mod kitsunedb;
 #[cfg(feature = "nsvr")]
 pub mod nsvr;
 #[cfg(feature = "paw")]
@@ -41,6 +45,12 @@ pub enum ProviderKind {
     #[cfg(feature = "avtrzip")]
     #[strum(to_string = "avtr․zip - Advanced Avatar Search")]
     AVTRZIP = 1 << 5,
+    #[cfg(feature = "kitsunedb")]
+    #[strum(to_string = "KitsuneDB - Avatar Database")]
+    KITSUNEDB = 1 << 6,
+    #[cfg(feature = "cutedb")]
+    #[strum(to_string = "CuteDB - Cutest Avatar Search")]
+    CUTEDB    = 1 << 7,
 }
 
 #[async_trait]

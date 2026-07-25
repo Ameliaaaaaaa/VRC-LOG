@@ -2,8 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use cached::once;
 use discord_presence::{
-    models::{EventData, PartialUser},
     Client,
+    models::{EventData, PartialUser},
 };
 use parking_lot::Mutex;
 
@@ -37,10 +37,10 @@ impl Discord {
     }
 }
 
-#[once(option = true, sync_writes = true)]
-pub fn get_user() -> Option<PartialUser> {
+#[once(sync_writes = true)]
+pub async fn get_user() -> Option<PartialUser> {
     let discord = Discord::start();
-    std::thread::sleep(Duration::from_secs(5));
+    tokio::time::sleep(Duration::from_secs(5)).await;
     discord.client.shutdown().ok()?;
 
     if let Some(user) = discord.user.lock().as_ref() {

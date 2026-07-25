@@ -15,22 +15,22 @@ use crate::{
     settings::Settings,
 };
 
-const INGEST_BASE_URL: &str = "https://api.avtrdb.com/v3/";
+const INGEST_BASE_URL: &str = "https://avtr.fumikoecho.net/api/integrations/vrc-log/";
 
-const DISCORD_URL: &str = "https://avtrdb.com/discord";
+const WEBSITE_URL: &str = "https://avtr.fumikoecho.net";
 
 const FLUSH_INTERVAL: Duration = Duration::from_mins(2);
 const FLUSH_THRESHOLD: usize = 100;
 
 const RETRY_LIMIT: usize = 5;
 
-const LOG_NAME: &str = "avtrDB";
+const LOG_NAME: &str = "KitsuneDB";
 
-pub struct AvtrDB {
+pub struct KitsuneDB {
     sender: Sender<String>,
 }
 
-pub struct AvtrDBActor<'s> {
+pub struct KitsuneDBActor<'s> {
     settings:       &'s Settings,
     client:         Client,
     buffer:         Vec<String>,
@@ -40,7 +40,7 @@ pub struct AvtrDBActor<'s> {
     last_flush:     Instant,
 }
 
-impl<'s> AvtrDBActor<'s> {
+impl<'s> KitsuneDBActor<'s> {
     /// # Errors
     /// Will return `Err` if anything errors
     pub async fn run(&mut self) -> anyhow::Result<()> {
@@ -123,7 +123,7 @@ impl<'s> AvtrDBActor<'s> {
             current_try += 1; // incrementing here to be able to cont later
             let response: reqwest::Response = self
                 .client
-                .post(Url::parse(&self.base_url)?.join("avatar/ingest")?)
+                .post(Url::parse(&self.base_url)?.join("ingest")?)
                 .header("User-Agent", USER_AGENT)
                 .json(&json)
                 .timeout(Duration::from_secs(5))
@@ -133,7 +133,7 @@ impl<'s> AvtrDBActor<'s> {
             let status = response.status();
             let text = response.text().await?;
             success = match status {
-                StatusCode::OK => true, // the API checks for things already enqueued
+                StatusCode::OK => true, // the API de-dupes already-known IDs
                 StatusCode::TOO_MANY_REQUESTS => {
                     warn!("[{LOG_NAME}] 429 Rate Limit, trying again in 10 seconds");
                     false
@@ -156,17 +156,13 @@ impl<'s> AvtrDBActor<'s> {
         }
 
         if let Some(ticket) = ticket {
-            let check_status_url = format!("https://avtrdb.com/check_ticket_status/{ticket}");
-            let link = Link::new("here", &check_status_url)
-                .to_string()
-                .color(Color::Magenta); // the link is quite long, so I don't display it - can be changed
-            info!("[{LOG_NAME}] Check ingestion status {link}");
+            debug!("[{LOG_NAME}] Ingest ticket: {ticket}");
         } else {
-            let discord = Link::new("discord", DISCORD_URL)
+            let website = Link::new("KitsuneDB", WEBSITE_URL)
                 .to_string()
                 .color(Color::Red);
             error!(
-                "[{LOG_NAME}] No ticket set - this is likely an error, please report in {discord}"
+                "[{LOG_NAME}] No ticket set - this is likely an error, please report at {website}"
             );
         }
 
@@ -177,7 +173,7 @@ impl<'s> AvtrDBActor<'s> {
     }
 }
 
-impl AvtrDB {
+impl KitsuneDB {
     #[must_use]
     pub const fn new(sender: Sender<String>) -> Self {
         Self { sender }
@@ -193,9 +189,9 @@ struct IngestResponse {
 }
 
 #[async_trait::async_trait]
-impl Provider for AvtrDB {
+impl Provider for KitsuneDB {
     fn kind(&self) -> ProviderKind {
-        ProviderKind::AVTRDB
+        ProviderKind::KITSUNEDB
     }
 
     async fn send_avatar_id(&self, avatar_id: &str) -> Result<bool> {
